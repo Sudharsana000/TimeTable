@@ -1,0 +1,27 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  text-align: center;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+#timetable {
+  margin-top: 20px;
+}
+
+.day {
+  margin-bottom: 20px;
+}
+
+.hour {
+  display: inline-block;
+  width: 100px;
+  padding: 5px;
+  border: 1px solid #000;
+  margin: 2px;
+  background-color: #f0f0f0;
+}
