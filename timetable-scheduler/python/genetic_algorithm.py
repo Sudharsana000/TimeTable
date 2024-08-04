@@ -1,177 +1,217 @@
-import json
 import random
+from itertools import product
 
-def generate_timetable(subjects, hours, lab_subjects, existing_timetable=None):
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-    hours_per_day = 7
-    total_hours_per_week = len(days) * hours_per_day
+# Initial Data
+lab_subjects = ["MAD Lab", "DS Lab", "C Lab"]
+classrooms = {
+    "regular": ["K504", "K505"],
+    "lab": ["CC", "ISL", "Project"]
+}
 
-    timetable = {day: [None] * hours_per_day for day in days}
+faculties = {
+    "MFCS": ["Shankar", "Sundar"],
+    "WT": ["Kalyani"],
+    "SPC": ["Manavalan"],
+    "DS": ["Gayatri"],
+    "DBMS": ["Geetha", "Ilayaraja"],
+    "TWM": ["Geetha", "Subathra"],
+    "MAD Lab": ["Sundar"],
+    "DS Lab": ["Gayatri"],
+    "C Lab": ["Geetha"]
+}
 
-    # Allocate lab hours first
-    for lab in lab_subjects:
-        lab_periods = 2
-        lab_allocated = 0
-        while lab_allocated < lab_periods:
-            day = random.choice(days)
-            start_hour = random.choice([i for i in range(0, hours_per_day-1, 2)])
-            if (timetable[day][start_hour] is None and timetable[day][start_hour + 1] is None and
-                (existing_timetable is None or (existing_timetable[day][start_hour]["subject"] != lab and existing_timetable[day][start_hour + 1]["subject"] != lab)) and (lab not in timetable[day])):
-                timetable[day][start_hour] = lab
-                timetable[day][start_hour + 1] = lab
-                lab_allocated += 1
+# Timetable Initialization
+days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+hours_per_day = 7
 
-    # Allocate regular hours
-    subject_hours = {subject: hrs for subject, hrs in zip(subjects, hours)}
-    subject_allocation = {subject: 0 for subject in subjects}
-    free_hours = total_hours_per_week - sum(hours) - len(lab_subjects) * 2
-    subject_list = sum([[subject] * hrs for subject, hrs in zip(subjects, hours)], [])
-    subject_list.extend([""] * free_hours)
-    random.shuffle(subject_list)
+# Helper function to check if a slot is free
+def is_free(timetable, day, start_hour, duration=2):
+    for hour in range(start_hour, start_hour + duration):
+        if timetable[day][hour] != "Free":
+            return False
+    return True
 
-    # Place free hours in the preferred slots
-    for day in days:
-        if timetable[day][-1] is None:
-            timetable[day][-1] = ""
-        elif timetable[day][3] is None:
-            timetable[day][3] = ""
+# Helper function to allocate a slot
+def allocate_slot(timetable, day, start_hour, subject, faculty, classroom, duration=2):
+    for hour in range(start_hour, start_hour + duration):
+        timetable[day][hour] = f"{subject}, {faculty}, {classroom}"
 
-    # Allocate subjects and remaining free hours
-    for subject in subjects:
-        if subject_hours[subject] < 5:
-            days_with_subject = set()
-            while subject_allocation[subject] < subject_hours[subject]:
-                day = random.choice(days)
-                hour = random.choice(range(hours_per_day))
-                if timetable[day][hour] is None and day not in days_with_subject:
-                    timetable[day][hour] = subject
-                    subject_allocation[subject] += 1
-                    days_with_subject.add(day)
-        else:
-            while subject_allocation[subject] < subject_hours[subject]:
-                day = random.choice(days)
-                hour = random.choice(range(hours_per_day))
-                if timetable[day][hour] is None:
-                    timetable[day][hour] = subject
-                    subject_allocation[subject] += 1
+# Helper function to check for conflicts in classroom and faculty allocations
+def has_conflict(timetable, day, start_hour, subject, duration=2):
+    faculty = faculties[subject][0]  # Assuming one faculty per subject for simplicity
+    for hour in range(start_hour, start_hour + duration):
+        if timetable[day][hour] != "Free" and (faculty in timetable[day][hour]):
+            return True
+    return False
 
-    # Fill in remaining slots with other subjects ensuring no more than 1 class per subject per day
-    remaining_slots = [(day, hour) for day in days for hour in range(hours_per_day) if timetable[day][hour] is None]
-    random.shuffle(remaining_slots)
+# Helper function to count lab sessions per day
+def count_sessions(timetable, day, step=2):
+    return sum(1 for hour in range(0, hours_per_day - 1, step) if timetable[day][hour] != "Free")
 
-    for subject in subjects:
-        while subject_allocation[subject] < subject_hours[subject]:
-            for day, hour in remaining_slots:
-                if timetable[day][hour] is None and (subject_hours[subject] >= 5 or timetable[day].count(subject) == 0):
-                    timetable[day][hour] = subject
-                    subject_allocation[subject] += 1
-                    remaining_slots.remove((day, hour))
-                    break
+# Backtracking function to generate timetable for labs
+def generate_timetable(timetable, lab_classes, index=0, all_timetables=[], max_timetables=50):
+    if len(all_timetables) >= max_timetables:
+        return True
 
-    return timetable
+    if index >= len(lab_classes):
+        all_timetables.append({day: timetable[day][:] for day in days})
+        return True
 
-def replace_none_with_empty_string(timetable):
-    for day in timetable:
-        for i in range(len(timetable[day])):
-            if timetable[day][i] is None:
-                timetable[day][i] = ""
-    return timetable
+    lab_class = lab_classes[index]
+    faculty = faculties[lab_class][0]
+    classroom = classrooms["lab"][index % len(classrooms["lab"])]
 
-def allocate_classrooms_and_faculties(timetable, classrooms, faculties, existing_allocations=None):
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-    hours_per_day = 7
+    found = False
+    even_hours = [i for i in range(0, hours_per_day - 1, 2)]
 
-    allocated_timetable = {day: [] for day in days}
-    used_classrooms = {day: [None] * hours_per_day for day in days}
-    used_faculties = {day: [None] * hours_per_day for day in days}
-    lab_allocations = {}  # Keep track of lab allocations
-    subject_faculty_allocation = {}  # Ensure one faculty per subject per class
+    for day1, day2 in product(days, repeat=2):
+        if day1 == day2:
+            continue
 
-    if existing_allocations:
-        for day in days:
-            for hour in range(hours_per_day):
-                if existing_allocations[day][hour]['subject']:
-                    used_classrooms[day][hour] = existing_allocations[day][hour]['classroom']
-                    used_faculties[day][hour] = existing_allocations[day][hour]['faculty']
+        for hour1, hour2 in product(even_hours, repeat=2):
+            if hour1 + 1 >= hours_per_day or hour2 + 1 >= hours_per_day:
+                continue
 
-    for day in days:
-        for hour in range(hours_per_day):
-            subject = timetable[day][hour]
-            if subject:
-                if "Lab" in subject:
-                    if subject in lab_allocations:
-                        classroom, faculty = lab_allocations[subject]
-                    else:
-                        available_classrooms = [clsrm for clsrm in classrooms["lab"] if clsrm not in (used_classrooms[day][hour:hour+2] if used_classrooms[day][hour] else [])]
-                        if not available_classrooms:
-                            raise Exception(f"No available lab classrooms for {subject} on {day} at hour {hour}")
-                        classroom = random.choice(available_classrooms)
-                        faculty = subject_faculty_allocation.get(subject) or random.choice(faculties[subject])
-                        lab_allocations[subject] = (classroom, faculty)
-                        subject_faculty_allocation[subject] = faculty
+            if (is_free(timetable, day1, hour1) and 
+                is_free(timetable, day2, hour2) and 
+                count_sessions(timetable, day1) < 2 and 
+                count_sessions(timetable, day2) < 2):
+                
+                allocate_slot(timetable, day1, hour1, lab_class, faculty, classroom)
+                allocate_slot(timetable, day2, hour2, lab_class, faculty, classroom)
 
-                    allocated_timetable[day].append({
-                        "subject": subject,
-                        "classroom": classroom,
-                        "faculty": faculty
-                    })
-                    used_classrooms[day][hour] = classroom
-                    used_faculties[day][hour] = faculty
-                else:
-                    available_classrooms = [clsrm for clsrm in classrooms["regular"] if clsrm not in (used_classrooms[day][hour] if used_classrooms[day][hour] else [])]
-                    if not available_classrooms:
-                        raise Exception(f"No available regular classrooms for {subject} on {day} at hour {hour}")
-                    classroom = random.choice(available_classrooms)
+                if generate_timetable(timetable, lab_classes, index + 1, all_timetables, max_timetables):
+                    found = True
 
-                    faculty = subject_faculty_allocation.get(subject) or random.choice(faculties[subject])
-                    subject_faculty_allocation[subject] = faculty
-                    allocated_timetable[day].append({
-                        "subject": subject,
-                        "classroom": classroom,
-                        "faculty": faculty
-                    })
-                    used_classrooms[day][hour] = classroom
-                    used_faculties[day][hour] = faculty
-            else:
-                allocated_timetable[day].append({
-                    "subject": "",
-                    "classroom": "",
-                    "faculty": ""
-                })
+                # Backtrack
+                for hour in range(hour1, hour1 + 2):
+                    timetable[day1][hour] = "Free"
+                for hour in range(hour2, hour2 + 2):
+                    timetable[day2][hour] = "Free"
 
-    return allocated_timetable
+    return found
 
-if __name__ == "__main__":
-    subjects = ["MFCS", "SPC", "DS", "DBMS", "WT", "TWM"]
-    hours = [4, 3, 3, 4, 3, 1]  # Total of 18 teaching hours
-    lab_subjects = ["MAD Lab", "DS Lab", "C Lab"]
+# Generate timetable for Class1 first
+timetable1 = {day: ["Free"] * hours_per_day for day in days}
+all_timetables1 = []
+generate_timetable(timetable1, lab_subjects, 0, all_timetables1)
 
-    classrooms = {
-        "regular": ["K504", "K505"],
-        "lab": ["CC", "ISL", "Project"]
-    }
+if not all_timetables1:
+    print("No valid timetable found for Class1.")
+    exit()
 
-    faculties = {
-        "MFCS": ["Shankar", "Sundar"],
-        "WT": ["Kalyani"],
-        "SPC": ["Manavalan"],
-        "DS": ["Gayatri"],
-        "DBMS": ["Geetha", "Ilayaraja"],
-        "TWM": ["Geetha", "Subathra"],
-        "MAD Lab": ["Sundar"],
-        "DS Lab": ["Gayatri"],
-        "C Lab": ["Geetha"]
-    }
+# Use timetable1 as a constraint to generate timetable for Class2
+def generate_timetable_with_constraints(timetable1, timetable2, lab_classes, index=0, all_timetables=[], max_timetables=50):
+    if len(all_timetables) >= max_timetables:
+        return True
 
-    class1_timetable = generate_timetable(subjects, hours, lab_subjects)
-    class1_timetable = replace_none_with_empty_string(class1_timetable)
-    allocated_class1_timetable = allocate_classrooms_and_faculties(class1_timetable, classrooms, faculties)
+    if index >= len(lab_classes):
+        all_timetables.append({day: timetable2[day][:] for day in days})
+        return True
 
-    class2_timetable = generate_timetable(subjects, hours, lab_subjects, allocated_class1_timetable)
-    class2_timetable = replace_none_with_empty_string(class2_timetable)
-    allocated_class2_timetable = allocate_classrooms_and_faculties(class2_timetable, classrooms, faculties, allocated_class1_timetable)
+    lab_class = lab_classes[index]
+    faculty = faculties[lab_class][0]
+    classroom = classrooms["lab"][index % len(classrooms["lab"])]
 
-    print(json.dumps({
-        "class1": allocated_class1_timetable,
-        "class2": allocated_class2_timetable
-    }, indent=4))
+    found = False
+    even_hours = [i for i in range(0, hours_per_day - 1, 2)]
+
+    for day1, day2 in product(days, repeat=2):
+        if day1 == day2:
+            continue
+
+        for hour1, hour2 in product(even_hours, repeat=2):
+            if hour1 + 1 >= hours_per_day or hour2 + 1 >= hours_per_day:
+                continue
+
+            if (is_free(timetable2, day1, hour1) and 
+                is_free(timetable2, day2, hour2) and 
+                count_sessions(timetable2, day1) < 2 and 
+                count_sessions(timetable2, day2) < 2 and 
+                not has_conflict(timetable1, day1, hour1, lab_class) and 
+                not has_conflict(timetable1, day2, hour2, lab_class)):
+                
+                allocate_slot(timetable2, day1, hour1, lab_class, faculty, classroom)
+                allocate_slot(timetable2, day2, hour2, lab_class, faculty, classroom)
+
+                if generate_timetable_with_constraints(timetable1, timetable2, lab_classes, index + 1, all_timetables, max_timetables):
+                    found = True
+
+                # Backtrack
+                for hour in range(hour1, hour1 + 2):
+                    timetable2[day1][hour] = "Free"
+                for hour in range(hour2, hour2 + 2):
+                    timetable2[day2][hour] = "Free"
+
+    return found
+
+# Initialize empty timetable for Class2
+all_timetables2 = []
+
+# Generate timetables for Class2 with constraints from Class1
+for timetable1_instance in all_timetables1:
+    timetable2 = {day: ["Free"] * hours_per_day for day in days}
+    generate_timetable_with_constraints(timetable1_instance, timetable2, lab_subjects, 0, all_timetables2)
+
+if not all_timetables2:
+    print("No valid timetable found for Class2.")
+    exit()
+
+# Regular class allocation
+subjects = ["MFCS", "SPC", "DS", "DBMS", "WT", "TWM"]
+subject_hours = [4, 3, 3, 4, 3, 1]  # Total of 18 teaching hours
+
+# Helper function to allocate regular classes
+def allocate_regular_classes(timetable, subjects, subject_hours):
+    for subject, hours in zip(subjects, subject_hours):
+        allocated_hours = 0
+        while allocated_hours < hours:
+            for day in days:
+                for hour in range(hours_per_day):
+                    if allocated_hours >= hours:
+                        break
+                    if is_free(timetable, day, hour, 1):
+                        faculty = faculties[subject][0] if len(faculties[subject]) == 1 else random.choice(faculties[subject])
+                        classroom = classrooms["regular"][allocated_hours % len(classrooms["regular"])]
+                        if not has_conflict(timetable, day, hour, subject, 1):
+                            allocate_slot(timetable, day, hour, subject, faculty, classroom, 1)
+                            allocated_hours += 1
+                            if allocated_hours >= hours:
+                                break
+                        else:
+                            continue
+
+# Allocate regular classes for Class1
+for timetable in all_timetables1:
+    allocate_regular_classes(timetable, subjects, subject_hours)
+
+# Allocate regular classes for Class2 with constraints
+for timetable in all_timetables2:
+    allocate_regular_classes(timetable, subjects, subject_hours)
+
+# Select one timetable randomly
+selected_index = random.randint(0, min(len(all_timetables2), 50) - 1)
+selected_timetable1 = all_timetables1[selected_index]
+selected_timetable2 = all_timetables2[selected_index]
+
+print(f"Number of possible outcomes: {min(len(all_timetables2), 50)}")
+
+# print("\nSelected Timetable for Class1:")
+# for day, slots in selected_timetable1.items():
+#     print(f"{day}: {slots}")
+    
+# print("\nSelected Timetable for Class2:")
+# for day, slots in selected_timetable2.items():
+#     print(f"{day}: {slots}")
+
+days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+for day in days:
+    for i in range(7):
+        print(day, " ",i+1, " ",selected_timetable1[day][i], " ", selected_timetable1[day][i])
+
+print("----------------------------------------------------------------------")
+
+for day in days:
+    for i in range(7):
+        if selected_timetable1[day][i][1] == selected_timetable2[day][i][1] or selected_timetable1[day][i][2] == selected_timetable2[day][i][2]:
+            print(day, " ",i+1, " ",selected_timetable1[day][i], "--- ", selected_timetable1[day][i])

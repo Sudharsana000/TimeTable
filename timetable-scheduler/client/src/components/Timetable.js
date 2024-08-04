@@ -2,16 +2,14 @@ import React, { useState } from 'react';
 import axios from 'axios';
 
 const Timetable = () => {
-    const [year1Class1Timetable, setYear1Class1Timetable] = useState({});
-    const [year1Class2Timetable, setYear1Class2Timetable] = useState({});
+    const [timetables, setTimetables] = useState([]);
     const [error, setError] = useState(null);
 
     const generateTimetable = async () => {
         try {
             const response = await axios.post('/generate');
             if (response.data) {
-                setYear1Class1Timetable(response.data.class1);
-                setYear1Class2Timetable(response.data.class2);
+                setTimetables(response.data);
                 setError(null);
             } else {
                 setError('Empty response from server.');
@@ -23,7 +21,7 @@ const Timetable = () => {
     };
 
     const renderTimetable = (timetable, title) => (
-        <div className="timetable">
+        <div className="timetable" key={title}>
             <h2>{title}</h2>
             {Object.entries(timetable).map(([day, hours]) => (
                 <div key={day} className="day">
@@ -44,12 +42,12 @@ const Timetable = () => {
             <button onClick={generateTimetable}>Generate Timetable</button>
             {error && <p style={{ color: 'red' }}>{error}</p>}
             <div id="timetables">
-                {renderTimetable(year1Class1Timetable, "Year 1 - Class 1 Timetable")}
-                {renderTimetable(year1Class2Timetable, "Year 1 - Class 2 Timetable")}
+                {Object.entries(timetables).map(([className, timetable]) => 
+                    renderTimetable(timetable, className)
+                )}
             </div>
         </div>
     );
 };
 
 export default Timetable;
-
