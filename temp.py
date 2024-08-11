@@ -11,7 +11,7 @@ def structure_timetable(days, hours_per_day):
                 "Faculty": None,
                 "Course": None
             }
-    
+
     return timetable
 
 def add_lab_courses(class1, lab_courses, faculties, classes_per_week, labs, hours_per_day, existing_class=None):
@@ -265,8 +265,6 @@ def add_regular_courses(class1, regular_courses, regular_faculties, regular_clas
 
             #print(day, " ",hour," ",class1[day][hour]," ",unallocated_regular_classes_per_week)
 
-
-
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 lab_courses = ["C Lab", "DS Lab", "MAD Lab"]  # Ensure these match the keys in faculties
 regular_courses = ["MFCS", "SPC", "DS", "DBMS", "WT", "TWM"]
@@ -296,7 +294,7 @@ faculties = {
 }
 
 regular_faculties = {
-    "MFCS": ["Sundar", "Shankar"],
+    "MFCS": ["Shankar", "Sundar"],
     "SPC": ["Manavalan"],
     "DS": ["Gayathri"],
     "DBMS": ["Geetha", "Ilayaraja"],
@@ -312,9 +310,12 @@ class2 = structure_timetable(days, hours_per_day)
 add_lab_courses(class2, lab_courses, faculties, classes_per_week, labs, hours_per_day, class1)
 
 add_regular_courses(class1, regular_courses, regular_faculties, regular_classes_per_week, classrooms, class2)
+add_regular_courses(class2, regular_courses, regular_faculties, regular_classes_per_week, classrooms, class1)
 
+# # Uncomment the following line to print the resulting timetable
+# for day in days:
+#     for hour in range(1, hours_per_day+1):
+#         if (class1[day][hour]['Faculty'] == class2[day][hour]['Faculty']) or (class1[day][hour]['Classroom'] == class2[day][hour]['Classroom']):
+#             print(class1[day][hour],"----", class2[day][hour])
 
-# Uncomment the following line to print the resulting timetable
-for day in days:
-    for hour in range(1, hours_per_day+1):
-        print(class1[day][hour],"----", class2[day][hour])
+print([class1, class2])
