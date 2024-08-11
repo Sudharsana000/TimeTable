@@ -104,6 +104,169 @@ def add_lab_courses(class1, lab_courses, faculties, classes_per_week, labs, hour
             available_days.remove(day)
             unallocated_classes_per_week -= 1
 
+# def add_regular_courses(class1, regular_courses, regular_faculties, regular_classes_per_week, classrooms, existing_classes = None):
+#     # Add regular courses to the schedule
+#     classroom_availability = {
+#         day: {hour: list(classrooms) for hour in range(1, hours_per_day + 1)}
+#         for day in class1.keys()
+#     }
+
+#     faculty_availability = {}
+
+#     for day in class1.keys():
+#         faculty_availability[day] = {}
+#         for hour in range(1, hours_per_day + 1):
+#             faculty_availability[day][hour] = {}
+#             for course in regular_courses:
+#                 if course in regular_faculties:
+#                     # Create a new list for each time slot to avoid shared references
+#                     faculty_availability[day][hour][course] = list(regular_faculties[course])
+#                     if (class1[day][hour]['Faculty'] is not None) and (class1[day][hour]['Faculty'] in faculty_availability[day][hour][course]):
+#                         #print(day," ", hour," ",class1[day][hour]['Faculty'])
+#                         faculty_availability[day][hour][course].remove(class1[day][hour]['Faculty'])
+#                 else:
+#                     print(f"Error: Course '{course}' not found in faculties dictionary.")
+#                     return
+                
+#     # Adjust availability based on existing_class timetable
+#     if existing_classes:
+#         for day in existing_classes:
+#             for hour in existing_classes[day]:
+#                 if existing_classes[day][hour]["Classroom"]:
+#                     if existing_classes[day][hour]["Classroom"] in classroom_availability[day][hour]:
+#                         classroom_availability[day][hour].remove(existing_classes[day][hour]["Classroom"])
+#                 if existing_classes[day][hour]["Faculty"]:
+#                     if existing_classes[day][hour]["Faculty"] in faculty_availability[day][hour][course]:
+#                         faculty_availability[day][hour][course].remove(existing_classes[day][hour]["Faculty"])
+
+#     day_hour_combinations = [
+#         (day, int(hour))  # Extract the hour number as an integer
+#         for day in class1.keys()
+#         for hour in class1[day].keys()
+#         if class1[day][hour]['Course'] is None
+#     ]
+    
+#     for regular_course in regular_courses:
+#         unallocated_regular_classes_per_week = regular_classes_per_week[regular_course]
+#         available_days = list(class1.keys())
+
+#         while unallocated_regular_classes_per_week > 0:
+#             available_hours = [
+#                 (d, hour)
+#                 for d, hour in day_hour_combinations
+#                 if d in available_days and classroom_availability[d][hour]
+#                 and faculty_availability[d][hour]
+#             ]
+
+#             if not available_hours:
+#                 print("Allocation not found")
+#                 break
+
+#             random_available_hour = random.choice(available_hours)
+#             day, hour = random_available_hour
+
+#             selected_classroom = classroom_availability[day][hour].pop(0)
+#             selected_faculty = faculty_availability[day][hour][course].pop(0) 
+
+#             class1[day][hour] = {
+#                 "Classroom": selected_classroom,
+#                 "Faculty": selected_faculty,
+#                 "Course": course
+#             }
+
+#             # Mark faculty as unavailable for this time slot
+#             if not faculty_availability[day][hour][course]:  # Remove the course if no faculty left
+#                 del faculty_availability[day][hour][course]
+
+#             available_days.remove(day)
+#             unallocated_regular_classes_per_week -= 1
+
+#             print(class1[day][hour]," ",unallocated_regular_classes_per_week)
+
+def add_regular_courses(class1, regular_courses, regular_faculties, regular_classes_per_week, classrooms, existing_classes=None):
+    # Add regular courses to the schedule
+    classroom_availability = {
+        day: {hour: list(classrooms) for hour in range(1, hours_per_day + 1)}
+        for day in class1.keys()
+    }
+
+    faculty_availability = {}
+
+    for day in class1.keys():
+        faculty_availability[day] = {}
+        for hour in range(1, hours_per_day + 1):
+            faculty_availability[day][hour] = {}
+            for course in regular_courses:
+                if course in regular_faculties:
+                    # Create a new list for each time slot to avoid shared references
+                    faculty_availability[day][hour][course] = list(regular_faculties[course])
+                    if (class1[day][hour]['Faculty'] is not None) and (class1[day][hour]['Faculty'] in faculty_availability[day][hour][course]):
+                        #print(day," ", hour," ",class1[day][hour]['Faculty'])
+                        faculty_availability[day][hour][course].remove(class1[day][hour]['Faculty'])
+                else:
+                    print(f"Error: Course '{course}' not found in faculties dictionary.")
+                    return
+                
+    # Adjust availability based on existing_class timetable
+    if existing_classes:
+        for day in existing_classes:
+            for hour in existing_classes[day]:
+                if existing_classes[day][hour]["Classroom"]:
+                    if existing_classes[day][hour]["Classroom"] in classroom_availability[day][hour]:
+                        classroom_availability[day][hour].remove(existing_classes[day][hour]["Classroom"])
+                if existing_classes[day][hour]["Faculty"]:
+                    for course in faculty_availability[day][hour]:
+                        if existing_classes[day][hour]["Faculty"] in faculty_availability[day][hour][course]:
+                            faculty_availability[day][hour][course].remove(existing_classes[day][hour]["Faculty"])
+
+    day_hour_combinations = [
+        (day, int(hour))  # Extract the hour number as an integer
+        for day in class1.keys()
+        for hour in class1[day].keys()
+        if class1[day][hour]['Course'] is None
+    ]
+    
+    for regular_course in regular_courses:
+        unallocated_regular_classes_per_week = regular_classes_per_week[regular_course]
+        available_days = list(class1.keys())
+
+        while unallocated_regular_classes_per_week > 0:
+            available_hours = [
+                (d, hour)
+                for d, hour in day_hour_combinations
+                if d in available_days and classroom_availability[d][hour]
+                and regular_course in faculty_availability[d][hour] and faculty_availability[d][hour][regular_course]
+            ]
+
+            if not available_hours:
+                print("Allocation not found for", regular_course)
+                break
+
+            random_available_hour = random.choice(available_hours)
+            day, hour = random_available_hour
+
+            selected_classroom = classroom_availability[day][hour].pop(0)
+            selected_faculty = faculty_availability[day][hour][regular_course].pop(0)
+
+            class1[day][hour] = {
+                "Classroom": selected_classroom,
+                "Faculty": selected_faculty,
+                "Course": regular_course
+            }
+
+            # Mark faculty as unavailable for this time slot
+            if not faculty_availability[day][hour][regular_course]:  # Remove the course if no faculty left
+                del faculty_availability[day][hour][regular_course]
+
+            available_days.remove(day)
+            unallocated_regular_classes_per_week -= 1
+
+            day_hour_combinations.remove((day, hour))
+
+            #print(day, " ",hour," ",class1[day][hour]," ",unallocated_regular_classes_per_week)
+
+
+
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 lab_courses = ["C Lab", "DS Lab", "MAD Lab"]  # Ensure these match the keys in faculties
 regular_courses = ["MFCS", "SPC", "DS", "DBMS", "WT", "TWM"]
@@ -148,7 +311,8 @@ add_lab_courses(class1, lab_courses, faculties, classes_per_week, labs, hours_pe
 class2 = structure_timetable(days, hours_per_day)
 add_lab_courses(class2, lab_courses, faculties, classes_per_week, labs, hours_per_day, class1)
 
-add_regular_courses()
+add_regular_courses(class1, regular_courses, regular_faculties, regular_classes_per_week, classrooms, class2)
+
 
 # Uncomment the following line to print the resulting timetable
 for day in days:
